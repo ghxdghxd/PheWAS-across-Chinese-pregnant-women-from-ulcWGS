@@ -94,3 +94,73 @@ info$Rsq = as.numeric(info$Rsq)
 
 write.table(info[info$Rsq>0.5 & (info$MAF>0.01 & info$MAF<0.99),], file="snp_imputed_R0.5_MAF0.01.txt", r=F,c=T,sep="\t",quote=F)
 ```
+
+## 5.3 SNPs' LDproxy based on CHX of 1000G(hg38)
+
+```sh
+################ plink2 LDproxy
+for i in {1..22} X;
+do
+vcftools --gzvcf ../ALL.chr${i}_GRCh38.genotypes.20170504.norm.vcf.gz --plink-tped --out CHB_CHS.chr${i}_GRCH38
+zgrep -v "^#" ../ALL.chr${i}_GRCh38.genotypes.20170504.norm.vcf.gz | \
+    awk '{print $1":"$2":"$4":"$5}' | paste -d "\t" - CHB_CHS.chr${i}_GRCH38.tped | cut -f 1-2,4- | awk '{OFS="\t";a=$1;$1=$2;$2=a;print $0}' > CHB_CHS.chr${i}_GRCH38.tped.1
+mv CHB_CHS.chr${i}_GRCH38.tped.1 CHB_CHS.chr${i}_GRCH38.tped
+plink --tfile CHB_CHS.chr${i}_GRCH38 --make-bed --out CHB_CHS.chr${i}_GRCH38
+done
+
+for i in {22..1};
+do
+grep -P "^$i:" imputed_SNP.txt > $i.txt
+plink --bfile CHB_CHS.chr${i}_GRCH38 --ld-snp-list $i.txt --ld-window-kb 500000 --ld-window 99999 --r2 --ld-window-r2 0.2 --out ${i}_ld_results --threads 40
+
+awk '{OFS="\t";print $3,$6,$7}' ${i}_ld_results.ld |bgzip -@30 > ${i}_ld_results.txt.gz
+rm ${i}.txt
+rm ${i}_ld_results.[ln]*
+done
+```
+
+```R
+library(data.table)
+library(dplyr)
+library(stringr)
+
+files = list.files(".", pattern="*.txt.gz")
+
+filter_ldproxy = function(f){
+    ldproxy <- fread(f, header=T, sep="\t", stringsAsFactors=F)
+    index <- which(ldproxy$SNP_A == ldproxy$SNP_B)
+    ldproxy_self <- ldproxy[index]
+    ldproxy <- ldproxy[-index]
+
+    index <- which(ldproxy$SNP_A > ldproxy$SNP_B)
+
+    ldproxy_T <- ldproxy[index] # nolint
+    ldproxy_F <- ldproxy[-index] # nolint
+
+    setkey(ldproxy_T, SNP_A, SNP_B)
+    colnames(ldproxy_F) <- c("SNP_B", "SNP_A", "R2")
+    setkey(ldproxy_F, SNP_A, SNP_B)
+    ldproxy_F <- ldproxy_F[!ldproxy_T] # nolint
+    colnames(ldproxy_F) <- c("SNP_A", "SNP_B", "R2")
+
+    ldproxy <- rbind(ldproxy_self, ldproxy_T, ldproxy_F)
+    save(ldproxy, file=gsub("txt.gz", "RData", f))
+}
+
+files = list.files(".", pattern="*_ld_results.RData")
+
+ldproxy = do.call(rbind, mclapply(files, function(x){
+    load(x)
+    ldproxy$SNP_B1 = gsub(":[atcgATCG]+","", ldproxy$SNP_B)
+    return(ldproxy)
+}, mc.cores = 22))
+
+snp <- read.table("snp.txt", header = F, sep = "\t", stringsAsFactors = F)
+# snp <- snp[grep("^22:", snp$V1), ]
+a <- data.table(SNP_A = setdiff(snp$V1, ldproxy$SNP_A))
+a$SNP_B <- a$SNP_A # nolint
+a$R2 <- 1 # nolint
+ldproxy <- rbind(ldproxy, a)
+
+save(ldproxy, file="ld_results.RData")
+```
