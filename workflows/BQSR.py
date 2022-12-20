@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# @Date    : 2018-07-27 12:55:09
-# @Author  : JT Guo
-# @Email   : guojt-4451@163.com
 # @Version : 1.0
 
 """Base_quality_score_recalibration."""
