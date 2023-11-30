@@ -85,7 +85,7 @@ p_MC_ld_0
 dev.off()
 ```
 
-## Figure 5B and S7
+## Figure 5B and S8
 
 ```R
 MC_GT_plot_hist = function(snp, icd, ICD, GTgroup = NULL, plot = T){
@@ -149,7 +149,7 @@ plot_hist_list = apply(dat0, 1, function(x){
     MC_GT_plot_hist(x["MarkerID"], x["icd.y"], x["icd.x"])
 })
 
-pdf("Figure5B_S7.pdf", width = 12, heigh = 4)
+pdf("Figure5B_S8.pdf", width = 12, heigh = 4)
 plot_hist_list
 dev.off()
 

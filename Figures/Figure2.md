@@ -159,15 +159,16 @@ colors37 = c("#466791","#60bf37","#953ada","#4fbe6c","#ce49d3","#a7b43d","#5a51d
     "#bba672","#403367","#da8a6d","#a79cd4","#71482c","#c689d0","#6b2940","#d593a7","#895c8b","#bd5975")
 
 
-pdf("Figure2A.pdf",width=10, height=2.4)
-ggarrange(newpage = F,
+library("cowplot")
+pdf("Figure2A.pdf",width=10, height=5)
+plot_grid(
     ggplot(res_gwas_pop) + geom_point(aes(power, -log10(p.value), color=ICDanno), size=0.6) +
         geom_hline(aes(yintercept=-log10(0.05)), linetype = "dashed") +
         scale_color_manual(values=colors37, guide = guide_legend(ncol = 1, override.aes = list(size = 2))) +
         scale_x_continuous(limits = c(0,1), breaks = seq(0, 1, 0.2)) +
         scale_y_continuous(position='right',limits = c(0,10), breaks = seq(0,10,2.5)) +
         theme_bw() +
-        theme(aspect.ratio= 0.8, legend.key.size = unit(0, 'lines')),
+        theme(aspect.ratio= 1, legend.key.size = unit(0, 'lines')),
     res_gwas_fraction2_pop %>% filter(min_obMAF=="MAF>0.01", pop %in% c("CHB", "EAS", "AS", "ALL")) %>%
         mutate(pop = factor(pop, levels = c("CHB", "EAS", "AS", "ALL"))) %>%
         ggplot(aes(as.numeric(min_power), fraction, color = pop, group = pop)) +
@@ -182,8 +183,10 @@ ggarrange(newpage = F,
                 legend.title = element_blank(),
                 legend.background = element_blank(),
                 axis.text.x = element_text(),
-                aspect.ratio = 0.8),
-    ncol=1)
+                aspect.ratio = 1),
+    ncol=1,
+    axis = 'lr',
+    align = "v")
 dev.off()
 ```
 
@@ -374,16 +377,16 @@ colors37 = c("#466791","#60bf37","#953ada","#4fbe6c","#ce49d3","#a7b43d","#5a51d
 
 res_gwas_pop_ld$R2_levels1 = factor(ifelse(res_gwas_pop_ld$R2>0.8, "high", "low"), levels = c("low", "high"))
 
-pdf("Figure2B.pdf", width = 10, height = 2.4)
+pdf("Figure2B.pdf", width = 6, height = 4)
 ggplot(res_gwas_pop_ld, aes(power_levels, -log10(p.value), fill=R2_levels1)) +
     geom_boxplot(outlier.size = 0.3, outlier.shape = NA, width = 0.6) +
     scale_y_continuous(limits = c(0,10), breaks = seq(0,10,2.5)) +
-    facet_grid(~replicated_pop) +
-    scale_fill_manual(values = rev(pal_ucscgb("default")(5))[c(1,3)]) + theme_bw() +
-    geom_hline(aes(yintercept=-log10(5e-8)), linetype = "dashed") +
-    geom_hline(aes(yintercept=-log10(1e-3)), linetype = "dashed") +
-    geom_hline(aes(yintercept=-log10(0.05)), linetype = "dashed") +
-    theme(aspect.ratio = 1)
+    scale_fill_manual(values = rev(pal_ucscgb("default")(5))[c(1,3)]) +
+    labs(fill= expression(paste("LD ",R^2))) +
+    theme_bw() +
+    theme(aspect.ratio = 0.6,
+        legend.position = c(0.2, 0.6),
+        legend.background = element_blank())
 dev.off()
 ```
 
@@ -469,12 +472,12 @@ res_OR$maxP = factor(as.numeric(res_OR$maxP), levels=sort(as.numeric(unique(res_
 res_OR$minRsq = paste("minRsq", res_OR$minRsq)
 res_OR$minBetaOR = paste("minBetaOR", res_OR$minBetaOR)
 
-pdf("Figure2C.pdf")
-ggplot(res_OR[which(res_OR$minRsq == "minRsq 0.8"), ],
-        aes(maxP, FoE_RR, color=pop, group = pop)) + geom_point() + geom_line() + facet_grid(~minRsq, scales="free") +
+pdf("Figure2C.pdf", width = 4, height = 4)
+ggplot(res_OR[which(res_OR$minRsq == "minRsq 0.8"), ] %>% filter(pop %in% c("CHB GWAS", "EAS GWAS", "AS GWAS", "GWAS Catalog"), !grepl(".3", maxP)) %>%
+    mutate(pop = factor(pop, levels = c("GWAS Catalog", "CHB GWAS", "EAS GWAS", "AS GWAS"), labels = c("Total GWAS", "CHX GWAS", "EAS GWAS", "AS GWAS")),
+            maxP = as.numeric(as.character(maxP))),
+        aes(maxP, FoE_RR, color=pop, group = pop)) + geom_point(shape = 15) + geom_line() + 
     geom_ribbon(aes(ymin = FoE_RR_confintMin, ymax = FoE_RR_confintMax), color=NA, fill = "grey60", alpha = 0.3) +
-    geom_vline(aes(xintercept=5.3), linetype = "dashed") +
-    scale_y_sqrt(n.breaks = 10) +
     scale_color_d3() +
     labs(x="-log10(Pvalue)", y="Fold of enrichment", fill="") +
     theme_bw() +
@@ -497,10 +500,71 @@ dat$ICD = 1
 dat[dat>1] = 1
 colnames(dat) = c("Total GWAS", "AS GWAS", "EAS GWAS", "SAS GWAS", "Chinese GWAS", "eQTL calalog", "EUR GeneATLAS","EUR PheWAS","EUR LabWAS", "Our PheWAS")
 
-pdf("Figure2D.pdf", width= 6, heigh = 6)
-upset(dat, sets = c("EUR LabWAS", "EUR PheWAS", "EUR GeneATLAS", "Chinese GWAS", "SAS GWAS", "EAS GWAS", "AS GWAS", "Total GWAS", "Our PheWAS"),
+pdf("Figure2D.pdf", width= 6, heigh = 4)
+upset(dat, sets = c("EUR LabWAS", "EUR PheWAS", "EUR GeneATLAS", "Chinese GWAS", "SAS GWAS", "EAS GWAS", "AS GWAS", "Total GWAS", "ulcWGS-PheWAS"),
     nintersects = 20,
     order.by = "freq", keep.order = T, point.size = 2, line.size = 0.8, mb.ratio = c(0.6, 0.4),
     mainbar.y.label = "Intersection Size", sets.x.label = "Set size")
+dev.off()
+```
+
+## Figure2
+
+```R
+p1 = ggplot(res_gwas_pop) + geom_point(aes(power, -log10(p.value), color=ICDanno), size=0.6) +
+        geom_hline(aes(yintercept=-log10(0.05)), linetype = "dashed") +
+        scale_color_manual(values=colors37, guide = guide_legend(ncol = 1, override.aes = list(size = 2))) +
+        scale_x_continuous(limits = c(0,1), breaks = seq(0, 1, 0.2)) +
+        scale_y_continuous(position='right',limits = c(0,10), breaks = seq(0,10,2.5)) +
+        theme_bw() +
+        theme(aspect.ratio= 1, legend.key.size = unit(0, 'lines'))
+
+p2 = res_gwas_fraction2_pop %>% filter(min_obMAF=="MAF>0.01", pop %in% c("CHB", "EAS", "AS", "ALL")) %>%
+        mutate(pop = factor(pop, levels = c("CHB", "EAS", "AS", "ALL"))) %>%
+        ggplot(aes(as.numeric(min_power), fraction, color = pop, group = pop)) +
+            geom_point(size=2, shape = 15) +
+            geom_smooth(method="lm", se = FALSE) +
+            scale_color_manual(values=pal_d3("category10")(5)[c(2:4,1)]) +
+            labs(x="minPower in PheWAS", y="Replicated(%)", fill="") +
+            scale_x_continuous(limits = c(0,1), breaks = seq(0, 1, 0.2)) +
+            scale_y_continuous(limits = c(0,100), breaks = seq(0,100,25)) +
+            theme_bw() +
+            theme(legend.position="right",
+                legend.title = element_blank(),
+                legend.background = element_blank(),
+                axis.text.x = element_text(),
+                aspect.ratio = 1)
+
+p3 = ggplot(res_gwas_pop_ld, aes(power_levels, -log10(p.value), fill=R2_levels1)) +
+    geom_boxplot(outlier.size = 0.3, outlier.shape = NA, width = 0.6) +
+    scale_y_continuous(limits = c(0,10), breaks = seq(0,10,2.5)) +
+    scale_fill_manual(values = rev(pal_ucscgb("default")(5))[c(1,3)]) +
+    labs(fill= expression(paste("LD ",R^2))) +
+    theme_bw() +
+    theme(aspect.ratio = 0.6,
+        legend.position = c(0.2, 0.6),
+        legend.background = element_blank())
+
+p4 = ggplot(res_OR[which(res_OR$minRsq == "minRsq 0.8"), ] %>% filter(pop %in% c("CHB GWAS", "EAS GWAS", "AS GWAS", "GWAS Catalog"), !grepl(".3", maxP)) %>%
+    mutate(pop = factor(pop, levels = c("GWAS Catalog", "CHB GWAS", "EAS GWAS", "AS GWAS"), labels = c("Total GWAS", "CHX GWAS", "EAS GWAS", "AS GWAS")),
+            maxP = as.numeric(as.character(maxP))),
+        aes(maxP, FoE_RR, color=pop, group = pop)) + geom_point() + geom_line() + 
+    geom_ribbon(aes(ymin = FoE_RR_confintMin, ymax = FoE_RR_confintMax), color=NA, fill = "grey60", alpha = 0.3) +
+    scale_color_d3() +
+    labs(x="-log10(Pvalue)", y="Fold of enrichment", fill="") +
+    theme_bw() +
+    theme(legend.position="right",
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle=0, vjust=0.5),
+        aspect.ratio = 1)
+
+p5 = upset(dat, sets = c("EUR LabWAS", "EUR PheWAS", "EUR GeneATLAS", "Chinese GWAS", "SAS GWAS", "EAS GWAS", "AS GWAS", "Total GWAS", "ulcWGS-PheWAS"),
+    nintersects = 20,
+    order.by = "freq", keep.order = T, point.size = 2, line.size = 0.8, mb.ratio = c(0.6, 0.4),
+    mainbar.y.label = "Intersection Size", sets.x.label = "Set size")
+
+
+pdf("Figure2.pdf", width=10, height = 8)
+plot_grid(p1 + theme(legend.position="none"),p2, p3, p4, nrow=2, ncol=2, axis = 'tblr', align = "h")
 dev.off()
 ```

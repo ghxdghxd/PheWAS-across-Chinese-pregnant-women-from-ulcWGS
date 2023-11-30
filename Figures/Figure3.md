@@ -43,12 +43,12 @@ res_sig_raw$cytoband = as.character(res_sig_raw$cytoband)
 
 res_sig_raw$ICDanno = ""
 res_sig_raw$ICDanno[grep("[AB]", res_sig_raw$icd)] = "Certain infectious and parasitic diseases"
-res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("C34", "C50", "C73", "D06", "D17", "D18", "D22", "D24", "D25", "D26"))] = "Neoplasms"
+res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("C34", "C50", "C73", "D06", "D17", "D18", "D22", "D24","D25", "D26"))] = "Neoplasms"
 res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("D50", "D56", "D72"))] = "Blood and blood-forming organs and certain disorders involving the immune mechanism"
 res_sig_raw$ICDanno[grep("E", res_sig_raw$icd)] = "Endocrine, nutritional and metabolic diseases"
 res_sig_raw$ICDanno[grep("F", res_sig_raw$icd)] = "Mental and behavioural disorders"
-res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("H00", "H01", "H02", "H04", "H10","H11", "H16", "H20", "H35", "H40", "H43", "H52"))] = "Eye and adnexa"
-res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("H60","H61","H65", "H66", "H69", "H72", "H81", "H90", "H91", "H92","H93"))] = "Ear and mastoid process"
+res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("H00", "H01", "H02", "H04", "H10", "H11", "H16", "H20", "H35", "H40", "H43", "H52"))] = "Eye and adnexa"
+res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("H60","H61","H65", "H66", "H69", "H72", "H81", "H90", "H91", "H92" ))] = "Ear and mastoid process"
 res_sig_raw$ICDanno[grep("I", res_sig_raw$icd)] = "Circulatory system"
 res_sig_raw$ICDanno[grep("J", res_sig_raw$icd)] = "Respiratory system"
 res_sig_raw$ICDanno[grep("K", res_sig_raw$icd)] = "Digestive system"
@@ -68,8 +68,83 @@ res_sig_raw_anno$ID = paste(res_sig_raw_anno$Otherinfo4, res_sig_raw_anno$Otheri
 res_sig_raw$Func_refGene = res_sig_raw_anno$Func.refGene[match(res_sig_raw$MarkerID, res_sig_raw_anno$ID)]
 save(res_sig_raw, file="pheWAS_sig_SAIGE_1e3_power0.8.RData")
 
+plot_all_icd_snp = function(res_sig, title, ldblock = F){
+    if(ldblock){
+        res_sig = res_sig %>% group_by(ICDanno, LDblock) %>%
+            summarise(CHR = CHR[which.min(p.value)], BP = BP[which.min(p.value)], OR = OR[which.min(p.value)], BETA = BETA[which.min(p.value)], P = min(p.value), cytoband = cytoband[which.min(p.value)]) %>% as.data.frame(stringsAsFactors = F)
+    }else{
+        res_sig = res_sig %>% mutate(P = p.value, OR_mean = OR)
+    }
+    res_sig$OR1 = res_sig$OR
+    res_sig$OR1[res_sig$OR >= 15] = ">=15"
+    res_sig$OR1[res_sig$OR >= 10 & res_sig$OR < 15] = "[10,15)"
+    res_sig$OR1[res_sig$OR >= 5 & res_sig$OR < 10] = "[5,10)"
+    res_sig$OR1[res_sig$OR >= 1 & res_sig$OR < 5] = "[1,5)"
+    res_sig$OR1[res_sig$OR > 0 & res_sig$OR < 1] = "(0,1)"
+    don <- res_sig %>%
+        # Compute chromosome size
+        group_by(CHR) %>%
+        summarise(chr_len=max(as.numeric(BP))) %>% 
+        # Calculate cumulative position of each chromosome
+        mutate(tot=cumsum(chr_len)-chr_len) %>%
+        select(-chr_len) %>%
+        # Add this info to the initial dataset
+        left_join(res_sig, ., by=c("CHR"="CHR")) %>%
+        # Add a cumulative position of each SNP
+        arrange(CHR, BP) %>%
+        mutate(BPcum=BP+tot)
+    axisdf = don %>% group_by(CHR) %>% summarize(center=(max(BPcum) + min(BPcum))/2, minBPcum = min(BPcum))
+    colors37 = c("#466791","#60bf37","#953ada","#4fbe6c","#ce49d3","#a7b43d","#5a51dc","#d49f36","#552095","#507f2d","#db37aa","#84b67c","#a06fda",
+        "#df462a","#5b83db","#c76c2d","#4f49a3","#82702d","#dd6bbb","#334c22","#d83979","#55baad","#dc4555","#62aad3","#8c3025","#417d61","#862977",
+        "#bba672","#403367","#da8a6d","#a79cd4","#71482c","#c689d0","#6b2940","#d593a7","#895c8b","#bd5975")
+    don_sub = don # %>% group_by(icd) %>% mutate(ind = 1:length(LDblock)) #%>% filter(ind < 100)
+    don_sub$ICDanno = factor(don_sub$ICDanno, levels = rev(names(sort(table(don_sub$ICDanno)))))
+    don_sub1 = reshape2::melt(table(unique(don_sub[,c("ICDanno","LDblock")])[,1])) %>% mutate(percent = value/length(unique(don_sub$LDblock))) %>% arrange(desc(value))
+    don_sub1$percent = paste0(signif(don_sub1$percent,3)*100, "%")
+    don_sub1$Var1 = factor(don_sub1$Var1, levels = don_sub1$Var1)
+    don_sub1$percent1 = don_sub1$percent
+    p1 = ggplot(don_sub, aes(x=BPcum, y=-log10(P), color=ICDanno, size=OR1)) +
+        geom_point(alpha=0.8, position=position_jitter(h = 0, w = 0.5)) +
+        geom_hline(yintercept=7.3, linetype = "dashed") +
+        scale_color_manual(values=colors37, guide = guide_legend(ncol = 2, override.aes = list(size = 5))) +
+        scale_x_continuous(expand = c(0.01, 0.2), label = axisdf$CHR, breaks= axisdf$center, minor_breaks = axisdf$minBPcum) +
+        scale_size_manual(breaks = c("(0,1)", "[1,5)", "[5,10)", "[10,15)", ">=15"), values = c(1, 1.5, 2, 2.5, 3)) +
+        # scale_y_break(c(10, 10), scale='free', space = 0) +
+        scale_y_cut(10) +
+        theme_bw() +
+        theme(
+            axis.text = element_text(size=10),
+            axis.title.y = element_text(size=12),
+            axis.title.x=element_blank(),
+            legend.title = element_text(size=12),
+            legend.text = element_text(size=10),
+            legend.key.size = unit(1,"line"),
+            legend.position= 'bottom',
+            legend.direction = "vertical",
+            legend.box = "horizontal",
+            panel.grid.major.x = element_blank())
+    p2 = ggplot(don_sub1 %>% mutate(Var1 = factor(Var1, levels = rev(Var1))), aes(value, Var1, fill=Var1, label = percent)) + geom_col() +
+        scale_fill_manual(values=rev(colors37[1:nrow(don_sub1)])) +
+        # coord_fixed(ratio = 1/1000) +
+        scale_x_sqrt(expand=c(0,0)) +
+        geom_text(aes(x=max(don_sub1$value) * 0.75)) +
+        theme_classic() +
+        theme(axis.title=element_blank(),
+            axis.line = element_blank(),
+            axis.ticks = element_blank(),
+            axis.text.x = element_blank(),
+            legend.position= 'none') #axis.text.x = element_text(angle = 60, vjust=1,hjust=1),
+    return(list(p1, p2))
+    # pdf(paste0(title, ".pdf"), width = 15, heigh = 6)
+    # plot(p1)
+    # dev.off()
+    # pdf(paste0(title, ".count.pdf"), width = 8, heigh = 3)
+    # plot(p2)
+    # dev.off()
+}
+
 pdf("Figure3A.pdf", width=15, height=6)
-plot_all_icd_snp(res_sig_raw[res_sig_raw$p.value<1e-5, ], title = "res_sig_raw_manhantan_ld_1e5", ldblock = T)
+plot_all_icd_snp(res_sig_raw[res_sig_raw$p.value<1e-6, ], title = "res_sig_raw_manhantan_ld_1e6", ldblock = T)
 dev.off()
 ```
 
@@ -85,29 +160,6 @@ pdf("Figure3B.pdf", width= 6, heigh = 6)
 upset(dat, sets = names(sort(colSums(dat))), nintersects = 20,
     order.by = "freq", keep.order = T, point.size = 2, line.size = 0.8, mb.ratio = c(0.6, 0.4),
     mainbar.y.label = "Intersection Size", sets.x.label = "Set size")
-aplot::plot_list(
-    reshape2::melt(table(apply(dat, 1, function(x){paste(colnames(dat)[x>0], collapse=",")}))) %>% arrange(value) %>%
-            mutate(Var1 = factor(Var1, levels = rev(Var1))) %>%
-            ggplot() + geom_col(aes(Var1, value)) +
-            geom_text(aes(Var1, value, label = value), hjust = 0, nudge_y = -0.2, size = 2.5) +
-            labs(y = "Intersection Size", x = "") +
-            scale_y_break(c(100, 260), scales = 0.3, ticklabels = c(270,320,350), expand = TRUE) +
-            scale_y_sqrt(expand = c(0,0)) +
-            theme_classic() +
-            theme(axis.text.x = element_blank(),
-                axis.ticks.x = element_blank()),
-    reshape2::melt(colSums(dat)) %>%
-        tibble::rownames_to_column() %>% arrange(value) %>%
-        mutate(rowname = factor(rowname, levels = rowname)) %>%
-        ggplot() + geom_col(aes(value, rowname)) +
-        geom_text(aes(value, rowname, label = value), hjust = 1, nudge_x = 0, size = 2.5) +
-        labs(x = "Set Size", y = "") +
-        scale_x_break(c(20, 90), scales = 0.2, ticklabels = 95, expand = TRUE) +
-        scale_x_break(c(100, 450), scales = 0.3, ticklabels = c(460,800,1000), expand = TRUE) +
-        scale_x_sqrt(expand = c(0,0)) +
-        theme_classic() +
-        theme(axis.ticks.y = element_blank()),
-    nrow = 2, heights = c(0.6, 0.4))
 dev.off()
 ```
 
@@ -139,4 +191,43 @@ p_snp_ld_levels = plot_snp_levels(res_sig_ld)
 pdf("pheWAS_snp_icd_count.levels.1.pdf", width=8, height=4)
 p_snp_ld_levels
 dev.off()
+```
+
+## Figure 3D-F
+
+```shell
+export PATH=/data/apps/locuszoom/bin:$PATH
+source activate locuszoom
+
+zcat N97.SAIGE.txt.gz|grep "^2:" | cut -f 1,6 | sed 's/:/\t/g' | awk '{print $1":"$2"\t"$5}' > N97.chr2.txt
+sed -i 1i"MarkerName\tP-value" N97.chr2.txt
+locuszoom --metal N97.chr2.txt \
+    --ld-vcf /data/NIPT/1000G/Eagle_Minimac4_GRCh38_positions_Reference_panels/CHB_CHS/ALL.chr2_GRCh38.genotypes.20170504.norm.vcf.gz \
+    --build hg38 --chr 2 --start 110000000 --end 113000000 signifLine="7.3" --rundir N97 \
+    --refsnp 2:111056516 --add-refsnps 2:110160461
+
+zcat D56.SAIGE.txt.gz|grep ^16: | cut -f 1,6 | sed 's/:/\t/g' | awk '{print $1":"$2"\t"$5}' > D56.chr16.txt
+sed -i 1i"MarkerName\tP-value" D56.chr16.txt
+locuszoom --metal D56.chr16.txt \
+    --ld-vcf /data/NIPT/1000G/Eagle_Minimac4_GRCh38_positions_Reference_panels/CHB_CHS/ALL.chr16_GRCh38.genotypes.20170504.norm.vcf.gz \
+    --build hg38 --chr 16 --start 100000 --end 500000 signifLine="7.3" --rundir D56
+
+zcat N70.SAIGE.txt.gz|grep ^2: | cut -f 1,6 | sed 's/:/\t/g' | awk '{print $1":"$2"\t"$5}' > N70.chr2.txt
+sed -i 1i"MarkerName\tP-value" N70.chr2.txt
+locuszoom --metal N70.chr2.txt \
+    --ld-vcf /data/NIPT/1000G/Eagle_Minimac4_GRCh38_positions_Reference_panels/CHB_CHS/ALL.chr2_GRCh38.genotypes.20170504.norm.vcf.gz \
+    --build hg38 --chr 2 --start 107000000 --end 110000000 signifLine="7.3" --rundir N70 \
+    --refsnp 2:108897145 --add-refsnps 2:109220369
+
+zcat E28.SAIGE.txt.gz|grep ^10: | cut -f 1,6 | sed 's/:/\t/g' | awk '{print $1":"$2"\t"$5}' > E28.chr10.txt
+sed -i 1i"MarkerName\tP-value" E28.chr10.txt
+locuszoom --metal E28.chr10.txt \
+    --ld-vcf /data/NIPT/1000G/Eagle_Minimac4_GRCh38_positions_Reference_panels/CHB_CHS/ALL.chr10_GRCh38.genotypes.20170504.norm.vcf.gz \
+    --build hg38 --chr 10 --start 48000000 --end 49500000 signifLine="7.3" --rundir E28
+
+zcat O36.SAIGE.txt.gz|grep ^7: | cut -f 1,6 | sed 's/:/\t/g' | awk '{print $1":"$2"\t"$5}' > O36.chr7.txt
+sed -i 1i"MarkerName\tP-value" O36.chr7.txt
+locuszoom --metal O36.chr7.txt \
+    --ld-vcf /data/NIPT/1000G/Eagle_Minimac4_GRCh38_positions_Reference_panels/CHB_CHS/ALL.chr7_GRCh38.genotypes.20170504.norm.vcf.gz \
+    --build hg38 --chr 7 --start 95000000 --end 105000000 signifLine="7.3" --rundir O36
 ```

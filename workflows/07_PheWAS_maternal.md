@@ -83,17 +83,19 @@ step1_fitNULLGLMM.R     \
     --plinkFile=for_SAIGE \
     --phenoFile=clin_status.gender.txt \
     --phenoCol=$icd \
-    --covarColList=age \
+    --covarColList=age,PC1,PC2,PC3,PC4,PC5 \
     --sampleIDColinphenoFile=ID \
     --traitType=binary \
-    --outputPrefix=./output/$icd \
+    --outputPrefix=./output1/$icd \
     --nThreads=30 \
     --LOCO=TRUE \
+    --maxMissingRateforGRM=0.95 \
+    --minMAFforGRM=0 \
     --IsOverwriteVarianceRatioFile=TRUE
 
 step2_SPAtests.R \
     --vcfFile=$j \
-    --vcfFileIndex=$j.tbi \
+    --vcfFileIndex=$j.csi \
     --vcfField=GT \
     --chrom=$chr \
     --minMAF=0.01 \
@@ -103,7 +105,6 @@ step2_SPAtests.R \
     --varianceRatioFile=./output1/$i.varianceRatio.txt \
     --SAIGEOutputFile=./output2/$i.SAIGE.genotype.$chr.txt \
     --LOCO=TRUE
-
 ```
 
 ### 7.1.3 combine SAIGE results

@@ -33,13 +33,13 @@ board_bed = board_bed[, c(2:4,1)]
 bed = bed_cnv[,c(1:3,6:8)] %>% group_by(chr, start, end, region, type) %>% summarise(n = length(unique(ID)))
 
 bed_board = unique(bedtoolsr::bt.intersect(bed, board_bed, wb=T))
-colnames(bed_board) = c("chr", 'start', 'end', 'region', "type", "n", "chrom", "board_start","board_end","board")
+colnames(bed_board) = c("chr", 'start', 'end', 'region', "type", "n", "chrom", "board_start","board_end","board", "CHR")
 bed_board$fraction = c(bed_board$end-bed_board$start+1)/c(bed_board$board_end-bed_board$board_start)
 bed_board = merge(bed_cnv, bed_board, by=c("chr", 'start', 'end', 'region', "type"))
 
 load("clin.RData")
 
-pdf("FigureS6A.pdf", width=4,height=4)
+pdf("FigureS7A.pdf", width=4,height=4)
 plot_hist_density(bed_board$fraction, breaks=100, xlab="fraction")
 dev.off()
 
@@ -70,9 +70,10 @@ res$ICDanno[grep("P", res$icd)] = "Certain conditions originating in the perinat
 res$ICDanno[grep("Q", res$icd)] = "Congenital malformations, deformations and chromosomal abnormalities"
 
 res$ICDanno = factor(res$ICDanno,
-                            levels = c("Pregnancy, childbirth and the puerperium", "Genitourinary system", "Endocrine, nutritional and metabolic diseases", "Digestive system", "Respiratory system", "Skin and subcutaneous tissue", "Musculoskeletal system and connective tissue",
-                                "Certain infectious and parasitic diseases", "Eye and adnexa", "Ear and mastoid process", "Neoplasms", "Circulatory system", "Mental and behavioural disorders", "Blood and blood-forming organs and certain disorders involving the immune mechanism",
-                                "Congenital malformations, deformations and chromosomal abnormalities"))
+                            levels = c("Genitourinary system", "Pregnancy, childbirth and the puerperium", "Endocrine, nutritional and metabolic diseases", "Digestive system", "Respiratory system", "Musculoskeletal system and connective tissue", "Skin and subcutaneous tissue", 
+                                "Blood and blood-forming organs and certain disorders involving the immune mechanism",
+                                "Certain infectious and parasitic diseases", "Ear and mastoid process", "Neoplasms", "Circulatory system", 
+                                "Congenital malformations, deformations and chromosomal abnormalities", "Mental and behavioural disorders", "Eye and adnexa"))
 
 
 p_cnv_board_filtered = bed_board %>% filter(fraction>0.8, board %in% names(which(colSums(mat_board!=0)>10))) %>%
@@ -101,7 +102,7 @@ p_cnv_board_filtered = bed_board %>% filter(fraction>0.8, board %in% names(which
             panel.border = element_rect(color = "black", fill = NA, size = 0.5),
             panel.grid.major.x = element_blank())
 
-pdf("Figure6B.pdf", width=12, height=2.285714)
+pdf("FigureS7B.pdf", width=12, height=2.285714)
 p_cnv_board_filtered
 dev.off()
 
