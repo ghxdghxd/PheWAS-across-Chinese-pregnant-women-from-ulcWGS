@@ -89,3 +89,21 @@ a$id2[grep("CH",a$id2)] = "HAN"
 
 write.table(a, file="Pop_pca_NIPTadd1kgCHB_JPT_com0.1_callRate0.99_conf95_SYNCSA.txt", r=F,c=T,sep="\t",quote=F)
 ```
+
+## 4.4 predicted the ancestry using SVM
+
+```R
+a <- read.table("Pop_pca_NIPTadd1kgCHB_JPT_com0.1_callRate0.99_conf95_SYNCSA.txt", header=T,sep="\t",stringsAsFactors=F)
+
+library(e1071) 
+train_data <- a[a$id2!="Case", c(1:2)]
+test_data <- a[a$id2=="Case", 1:2]
+
+train_labels <- factor(a$id2[a$id2!="Case"], labels=1:3, levels = c("HAN","CDX","JPT"))
+
+svm_model <- svm(train_data, train_labels)  
+
+predicted_labels <- predict(svm_model, test_data)
+
+table(predicted_labels)
+```

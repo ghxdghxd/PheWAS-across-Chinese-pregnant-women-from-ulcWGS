@@ -184,6 +184,112 @@ snp_power = do.call(rbind, snp_power)
 save(snp_power, file="phewas_power_P0.001.RData")
 ```
 
+### 7.1.5 Selecting the maternal pleiotropic trait-associated-loci
+
+```R
+library(data.table)
+library(stringr)
+load("phewas_power_P0.001.RData")
+res_sig = res_sig_raw[which(res_sig_raw$power > 0.8 & res_sig_raw$p.value < 5e-8), ]
+
+bed = unique(res_sig$MarkerID)
+bed = data.frame(SNP=bed, stringr::str_split(bed, pattern=":", simplify=T)[,1:2], stringsAsFactors = F)
+colnames(bed) = c("SNP", "CHR", "BP")
+bed$CHR = as.numeric(bed$CHR)
+bed$BP = as.numeric(bed$BP)
+
+res_sig = cbind(res_sig, bed[match(res_sig$MarkerID, bed$SNP), c("CHR", "BP")])
+
+res_sig_bed = res_sig[,c("CHR","BP")]
+res_sig_bed$start = res_sig_bed$BP - 1
+colnames(res_sig_bed) = c("chrom", "end", "start")
+res_sig_bed = res_sig_bed[, c("chrom", "start", "end")]
+
+# gene
+gene_bed = read.table("/share/data3/NIPT/bam_vcf/hg38.RefSeqGene.bed", header=F,sep="\t",stringsAsFactors=F)
+colnames(gene_bed) = c("chrom", "start", "end", "gene")
+gene_bed$chrom = gsub("chr", "", gene_bed$chrom)
+
+res_sig_bed_gene = unique(bedtoolsr::bt.intersect(res_sig_bed, gene_bed, wb=T)[,c(1,3,7)])
+
+res_sig = merge(res_sig, res_sig_bed_gene, by.x=c("CHR","BP"), by.y=c("V1","V3"), all.x=T)
+colnames(res_sig)[ncol(res_sig)] = "gene"
+res_sig$gene = as.character(res_sig$gene)
+
+# cytoband
+cytoband_bed = read.table("/share/data3/NIPT/cytoband_hg38.txt", header=F,sep="\t",stringsAsFactors=F)
+colnames(cytoband_bed) = c("chrom", "start", "end", "cytoband", "V5")
+
+res_sig_bed_cytoband = unique(bedtoolsr::bt.intersect(res_sig_bed, cytoband_bed, wb=T)[,c(1,3,7)])
+
+res_sig = merge(res_sig, res_sig_bed_cytoband, by.x=c("CHR","BP"), by.y=c("V1","V3"), all.x=T)
+colnames(res_sig)[ncol(res_sig)] = "cytoband"
+res_sig$cytoband = as.character(res_sig$cytoband) 
+
+res_sig$ICDanno = ""
+res_sig$ICDanno[grep("[AB]", res_sig$icd)] = "Certain infectious and parasitic diseases"
+res_sig$ICDanno[which(res_sig$icd %in% c("C34", "C50", "C73", "D06", "D17", "D18", "D22", "D24","D25", "D26"))] = "Neoplasms"
+res_sig$ICDanno[which(res_sig$icd %in% c("D50", "D56", "D72"))] = "Blood and blood-forming organs and certain disorders involving the immune mechanism"
+res_sig$ICDanno[grep("E", res_sig$icd)] = "Endocrine, nutritional and metabolic diseases"
+res_sig$ICDanno[grep("F", res_sig$icd)] = "Mental and behavioural disorders"
+res_sig$ICDanno[which(res_sig$icd %in% c("H00", "H01", "H02", "H04", "H10", "H11", "H16", "H20", "H35", "H40", "H43", "H52"))] = "Eye and adnexa"
+res_sig$ICDanno[which(res_sig$icd %in% c("H60","H61","H65", "H66", "H69", "H72", "H81", "H90", "H91", "H92" ))] = "Ear and mastoid process"
+res_sig$ICDanno[grep("I", res_sig$icd)] = "Circulatory system"
+res_sig$ICDanno[grep("J", res_sig$icd)] = "Respiratory system"
+res_sig$ICDanno[grep("K", res_sig$icd)] = "Digestive system"
+res_sig$ICDanno[grep("L", res_sig$icd)] = "Skin and subcutaneous tissue"
+res_sig$ICDanno[grep("M", res_sig$icd)] = "Musculoskeletal system and connective tissue"
+res_sig$ICDanno[grep("N", res_sig$icd)] = "Genitourinary system"
+res_sig$ICDanno[grep("O", res_sig$icd)] = "Pregnancy, childbirth and the puerperium"
+res_sig$ICDanno[grep("P", res_sig$icd)] = "Certain conditions originating in the perinatal period"
+res_sig$ICDanno[grep("Q", res_sig$icd)] = "Congenital malformations, deformations and chromosomal abnormalities"
+
+load("LDblock_5e8_Rsq0.8.RData")
+res_sig$LDblock = ldblock$L1[match(res_sig$MarkerID, ldblock$value)]
+
+res_sig_raw_anno = fread("../../for_SAIGE/annovar/pheWAS_sig_SAIGE_1e3_power0.8.lite.hg38_multianno.txt", header=T,sep="\t",stringsAsFactors=F)
+res_sig_raw_anno$ID = paste(res_sig_raw_anno$Otherinfo4, res_sig_raw_anno$Otherinfo5, res_sig_raw_anno$Otherinfo7, res_sig_raw_anno$Otherinfo8, sep=":")
+
+res_sig$Func_refGene = res_sig_raw_anno$Func.refGene[match(res_sig$MarkerID, res_sig_raw_anno$ID)]
+
+
+# LD-R2<0.01
+# SNPs' LD-R2 in ulcWGS
+files = list.files("LD_ulcWGS", pattern="*.ld_results.txt.gz$", full.names = T)
+minimac4_ld = lapply(files, function(x){
+    a <- fread(x, header=T, sep="\t", stringsAsFactors=F)
+    return(a)
+})
+minimac4_ld = do.call(rbind, minimac4_ld)
+
+# SNPs' LD-R2 in 1KGP
+ldproxy = fread("ld_results.txt.gz", header=T,sep="\t",stringsAsFactors=F)
+colnames(ldproxy)[3] = "R2_1kg"
+
+dat = rbind(merge(minimac4_ld, ldproxy, by = c("SNP_A", "SNP_B")), 
+    merge(minimac4_ld, ldproxy, by.x = c("SNP_A", "SNP_B"), by.y = c("SNP_B", "SNP_A")))
+dat$R2_diff = dat$R2_1kg - dat$R2
+
+dat_sig = dat[dat$SNP_A %in% res_sig$MarkerID | dat$SNP_B %in% res_sig$MarkerID, ]
+dat_sig$R2_diff = dat_sig$R2_1kg - dat_sig$R2
+dat_sig$R2_ratio = dat_sig$R2_1kg/dat_sig$R2
+
+
+dat_sig_1e6 = dat[dat$SNP_A %in% res_sig_raw$MarkerID | dat$SNP_B %in% res_sig_raw$MarkerID, ]
+dat_sig_1e6$R2_diff = dat_sig_1e6$R2_1kg - dat_sig_1e6$R2
+dat_sig_1e6$R2_ratio = dat_sig_1e6$R2_1kg/dat_sig_1e6$R2
+
+
+int = intersect(res_sig$MarkerID, dat_sig$SNP_B[which(dat_sig$SNP_A %in% res_sig$MarkerID & dat_sig$SNP_B %in% res_sig$MarkerID & abs(dat_sig$R2_diff)<0.01)])
+res_sig_filter = res_sig[which(res_sig$MarkerID %in% int), ]
+save(res_sig_filter, file="pheWAS_sig_SAIGE_5e8_power0.8_filtered.RData")
+
+int_1e6 = intersect(res_sig_raw$MarkerID, dat_sig_1e6$SNP_B[which(dat_sig_1e6$SNP_A %in% res_sig_raw$MarkerID & dat_sig_1e6$SNP_B %in% res_sig_raw$MarkerID & abs(dat_sig_1e6$R2_diff) < 0.01)])
+
+res_sig_1e6_filter = res_sig_raw[which(res_sig_raw$MarkerID %in% int_1e6 & res_sig_raw$p.value <= 5e-8), ]
+save(res_sig_1e6_filter, file="pheWAS_sig_SAIGE_1e6_power0.8_filtered.RData")
+```
+
 ## 7.2 PheWAS for maternal CNVs
 
 ### 7.2.1 CNVs of chromosome boards

@@ -164,3 +164,28 @@ ldproxy <- rbind(ldproxy, a)
 
 save(ldproxy, file="ld_results.RData")
 ```
+
+## 5.4 SNPs' LDproxy in ulcWGS
+
+```sh
+################################ LD-R2 of imputed variants
+for chr in {1..22};
+do
+{
+    bcftools view -i 'R2>0.5' $chr.MAF0.01.ICDsample.imputed.dose.vcf.gz -Oz -o $chr.MAF0.01.ICDsample.imputed.R2_0.5.vcf.gz
+    vcftools --gzvcf $chr.MAF0.01.ICDsample.imputed.R2_0.5.vcf.gz --plink-tped --out $chr.MAF0.01.ICDsample.imputed.R2_0.5
+    plink --tfile $chr.MAF0.01.ICDsample.imputed.R2_0.5 --make-bed --out $chr.MAF0.01.ICDsample.imputed.R2_0.5
+    plink --bfile $chr.MAF0.01.ICDsample.imputed.R2_0.5 --ld-window-kb 500000 --ld-window 99999 --r2 --ld-window-r2 0.2 \
+    --out $chr.MAF0.01.ICDsample.imputed.R2_0.5.ld_results --threads 2
+} &
+done
+
+
+for i in *.ld;
+do
+out=`echo $i|sed 's/ld$/txt.gz/g'`
+awk '{OFS="\t";print $3,$6,$7}' ${i} |bgzip -@30 > ${out}
+# rm ${i}.txt
+# rm ${i}_ld_results.[ln]*
+done
+```

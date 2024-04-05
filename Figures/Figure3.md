@@ -3,85 +3,20 @@
 ## Figure 3A
 
 ```R
-library(data.table)
-library(stringr)
-load("phewas_power_P0.001.RData")
-res_sig_raw = snp_power[which(snp_power$power > 0.8), ]
-
-bed_raw = unique(res_sig_raw$MarkerID)
-bed_raw = data.frame(SNP=bed_raw, stringr::str_split(bed_raw, pattern=":", simplify=T)[,1:2], stringsAsFactors = F)
-colnames(bed_raw) = c("SNP", "CHR", "BP")
-bed_raw$CHR = as.numeric(bed_raw$CHR)
-bed_raw$BP = as.numeric(bed_raw$BP)
-
-res_sig_raw = cbind(res_sig_raw, bed_raw[match(res_sig_raw$MarkerID, bed_raw$SNP), c("CHR", "BP")])
-res_sig_raw_bed = res_sig_raw[,c("CHR","BP")]
-res_sig_raw_bed$start = res_sig_raw_bed$BP - 1
-colnames(res_sig_raw_bed) = c("chrom", "end", "start")
-res_sig_raw_bed = res_sig_raw_bed[, c("chrom", "start", "end")]
-
-#gene Symbol
-gene_bed = read.table("hg38.RefSeqGene.bed", header=F,sep="\t",stringsAsFactors=F)
-colnames(gene_bed) = c("chrom", "start", "end", "gene")
-gene_bed$chrom = gsub("chr", "", gene_bed$chrom)
-
-res_sig_raw_bed_gene = unique(bedtoolsr::bt.intersect(res_sig_raw_bed, gene_bed, wb=T)[,c(1,3,7)])
-
-res_sig_raw = merge(res_sig_raw, res_sig_raw_bed_gene, by.x=c("CHR","BP"), by.y=c("V1","V3"), all.x=T)
-colnames(res_sig_raw)[ncol(res_sig_raw)] = "gene"
-res_sig_raw$gene = as.character(res_sig_raw$gene)
-
-# cytoband
-cytoband_bed = read.table("cytoband_hg38.txt", header=F,sep="\t",stringsAsFactors=F)
-colnames(cytoband_bed) = c("chrom", "start", "end", "cytoband", "V5")
-
-res_sig_raw_bed_cytoband = unique(bedtoolsr::bt.intersect(res_sig_raw_bed, cytoband_bed, wb=T)[,c(1,3,7)])
-
-res_sig_raw = merge(res_sig_raw, res_sig_raw_bed_cytoband, by.x=c("CHR","BP"), by.y=c("V1","V3"), all.x=T)
-colnames(res_sig_raw)[ncol(res_sig_raw)] = "cytoband"
-res_sig_raw$cytoband = as.character(res_sig_raw$cytoband)
-
-res_sig_raw$ICDanno = ""
-res_sig_raw$ICDanno[grep("[AB]", res_sig_raw$icd)] = "Certain infectious and parasitic diseases"
-res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("C34", "C50", "C73", "D06", "D17", "D18", "D22", "D24","D25", "D26"))] = "Neoplasms"
-res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("D50", "D56", "D72"))] = "Blood and blood-forming organs and certain disorders involving the immune mechanism"
-res_sig_raw$ICDanno[grep("E", res_sig_raw$icd)] = "Endocrine, nutritional and metabolic diseases"
-res_sig_raw$ICDanno[grep("F", res_sig_raw$icd)] = "Mental and behavioural disorders"
-res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("H00", "H01", "H02", "H04", "H10", "H11", "H16", "H20", "H35", "H40", "H43", "H52"))] = "Eye and adnexa"
-res_sig_raw$ICDanno[which(res_sig_raw$icd %in% c("H60","H61","H65", "H66", "H69", "H72", "H81", "H90", "H91", "H92" ))] = "Ear and mastoid process"
-res_sig_raw$ICDanno[grep("I", res_sig_raw$icd)] = "Circulatory system"
-res_sig_raw$ICDanno[grep("J", res_sig_raw$icd)] = "Respiratory system"
-res_sig_raw$ICDanno[grep("K", res_sig_raw$icd)] = "Digestive system"
-res_sig_raw$ICDanno[grep("L", res_sig_raw$icd)] = "Skin and subcutaneous tissue"
-res_sig_raw$ICDanno[grep("M", res_sig_raw$icd)] = "Musculoskeletal system and connective tissue"
-res_sig_raw$ICDanno[grep("N", res_sig_raw$icd)] = "Genitourinary system"
-res_sig_raw$ICDanno[grep("O", res_sig_raw$icd)] = "Pregnancy, childbirth and the puerperium"
-res_sig_raw$ICDanno[grep("P", res_sig_raw$icd)] = "Certain conditions originating in the perinatal period"
-res_sig_raw$ICDanno[grep("Q", res_sig_raw$icd)] = "Congenital malformations, deformations and chromosomal abnormalities"
-
-load("LDblock_1e3_Rsq0.8.RData")
-res_sig_raw$LDblock = ldblock$L1[match(res_sig_raw$MarkerID, ldblock$value)]
-
-res_sig_raw_anno = fread("pheWAS_sig_SAIGE_1e3_power0.8.lite.hg38_multianno.txt", header=T,sep="\t",stringsAsFactors=F)
-res_sig_raw_anno$ID = paste(res_sig_raw_anno$Otherinfo4, res_sig_raw_anno$Otherinfo5, res_sig_raw_anno$Otherinfo7, res_sig_raw_anno$Otherinfo8, sep=":")
-
-res_sig_raw$Func_refGene = res_sig_raw_anno$Func.refGene[match(res_sig_raw$MarkerID, res_sig_raw_anno$ID)]
-save(res_sig_raw, file="pheWAS_sig_SAIGE_1e3_power0.8.RData")
-
-plot_all_icd_snp = function(res_sig, title, ldblock = F){
+plot_all_icd_snp = function(res_sig, title, ldblock = F, h_SNP){
     if(ldblock){
-        res_sig = res_sig %>% group_by(ICDanno, LDblock) %>%
+        res_sig1 = res_sig %>% group_by(ICDanno, LDblock) %>%
             summarise(CHR = CHR[which.min(p.value)], BP = BP[which.min(p.value)], OR = OR[which.min(p.value)], BETA = BETA[which.min(p.value)], P = min(p.value), cytoband = cytoband[which.min(p.value)]) %>% as.data.frame(stringsAsFactors = F)
     }else{
         res_sig = res_sig %>% mutate(P = p.value, OR_mean = OR)
     }
-    res_sig$OR1 = res_sig$OR
-    res_sig$OR1[res_sig$OR >= 15] = ">=15"
-    res_sig$OR1[res_sig$OR >= 10 & res_sig$OR < 15] = "[10,15)"
-    res_sig$OR1[res_sig$OR >= 5 & res_sig$OR < 10] = "[5,10)"
-    res_sig$OR1[res_sig$OR >= 1 & res_sig$OR < 5] = "[1,5)"
-    res_sig$OR1[res_sig$OR > 0 & res_sig$OR < 1] = "(0,1)"
-    don <- res_sig %>%
+    res_sig1$OR1 = res_sig1$OR
+    res_sig1$OR1[res_sig1$OR >= 15] = ">=15"
+    res_sig1$OR1[res_sig1$OR >= 10 & res_sig1$OR < 15] = "[10,15)"
+    res_sig1$OR1[res_sig1$OR >= 5 & res_sig1$OR < 10] = "[5,10)"
+    res_sig1$OR1[res_sig1$OR >= 1 & res_sig1$OR < 5] = "[1,5)"
+    res_sig1$OR1[res_sig1$OR > 0 & res_sig1$OR < 1] = "(0,1)"
+    don <- res_sig1 %>%
         # Compute chromosome size
         group_by(CHR) %>%
         summarise(chr_len=max(as.numeric(BP))) %>% 
@@ -89,27 +24,67 @@ plot_all_icd_snp = function(res_sig, title, ldblock = F){
         mutate(tot=cumsum(chr_len)-chr_len) %>%
         select(-chr_len) %>%
         # Add this info to the initial dataset
-        left_join(res_sig, ., by=c("CHR"="CHR")) %>%
+        left_join(res_sig1, ., by=c("CHR"="CHR")) %>%
         # Add a cumulative position of each SNP
         arrange(CHR, BP) %>%
         mutate(BPcum=BP+tot)
     axisdf = don %>% group_by(CHR) %>% summarize(center=(max(BPcum) + min(BPcum))/2, minBPcum = min(BPcum))
-    colors37 = c("#466791","#60bf37","#953ada","#4fbe6c","#ce49d3","#a7b43d","#5a51dc","#d49f36","#552095","#507f2d","#db37aa","#84b67c","#a06fda",
-        "#df462a","#5b83db","#c76c2d","#4f49a3","#82702d","#dd6bbb","#334c22","#d83979","#55baad","#dc4555","#62aad3","#8c3025","#417d61","#862977",
+    colors37 = c("#466791","#60bf37","#953ada","#4fbe6c","#ce49d3","#a7b43d","#5a51dc","#d49f36","#552095","#507f2d","#db37aa","#84b67c",#"#a06fda","#df462a",
+    "#5b83db","#c76c2d","#4f49a3","#82702d","#dd6bbb","#334c22","#d83979","#55baad","#dc4555","#62aad3","#8c3025","#417d61","#862977",
         "#bba672","#403367","#da8a6d","#a79cd4","#71482c","#c689d0","#6b2940","#d593a7","#895c8b","#bd5975")
     don_sub = don # %>% group_by(icd) %>% mutate(ind = 1:length(LDblock)) #%>% filter(ind < 100)
-    don_sub$ICDanno = factor(don_sub$ICDanno, levels = rev(names(sort(table(don_sub$ICDanno)))))
+    don_sub$ICDanno = factor(don_sub$ICDanno,
+                            levels = c("Genitourinary system", "Pregnancy, childbirth and the puerperium", 
+                                "Endocrine, nutritional and metabolic diseases", 
+                                "Digestive system", "Respiratory system", 
+                                "Musculoskeletal system and connective tissue", 
+                                "Skin and subcutaneous tissue", 
+                                "Blood and blood-forming organs and certain disorders involving the immune mechanism",
+                                "Certain infectious and parasitic diseases", "Ear and mastoid process", "Neoplasms", "Circulatory system", 
+                                "Eye and adnexa"))
     don_sub1 = reshape2::melt(table(unique(don_sub[,c("ICDanno","LDblock")])[,1])) %>% mutate(percent = value/length(unique(don_sub$LDblock))) %>% arrange(desc(value))
     don_sub1$percent = paste0(signif(don_sub1$percent,3)*100, "%")
     don_sub1$Var1 = factor(don_sub1$Var1, levels = don_sub1$Var1)
     don_sub1$percent1 = don_sub1$percent
-    p1 = ggplot(don_sub, aes(x=BPcum, y=-log10(P), color=ICDanno, size=OR1)) +
+    h_SNP = cbind(do.call(rbind, lapply(1:nrow(h_SNP), function(x){
+        m = res_sig[which(res_sig$MarkerID==h_SNP$V1[x] & res_sig$icd==h_SNP$V2[x]), ]
+        mm = don_sub[which(don_sub$LDblock %in% m$LDblock & don_sub$BP %in% m$BP & don_sub$ICDanno %in% m$ICDanno),]
+        return(mm)
+    })), h_SNP)
+    h_SNP$lab = paste(h_SNP$V1, h_SNP$V2)
+    don_sub = left_join(don_sub, h_SNP[,c("LDblock","ICDanno","lab")], by = c("ICDanno", "LDblock"))
+    p0 = ggplot(don_sub, aes(x=BPcum, y=-log10(P), color=ICDanno, size=OR1, label=lab)) +
         geom_point(alpha=0.8, position=position_jitter(h = 0, w = 0.5)) +
         geom_hline(yintercept=7.3, linetype = "dashed") +
         scale_color_manual(values=colors37, guide = guide_legend(ncol = 2, override.aes = list(size = 5))) +
         scale_x_continuous(expand = c(0.01, 0.2), label = axisdf$CHR, breaks= axisdf$center, minor_breaks = axisdf$minBPcum) +
         scale_size_manual(breaks = c("(0,1)", "[1,5)", "[5,10)", "[10,15)", ">=15"), values = c(1, 1.5, 2, 2.5, 3)) +
         # scale_y_break(c(10, 10), scale='free', space = 0) +
+        geom_text_repel(force=20, color="grey20", size=3, point.padding = 1, hjust = 1, vjust = 1,
+            arrow = arrow(length = unit(0.01, "npc"), type = "open", ends = "last"),
+            segment.color="grey20", segment.size=0.2, segment.alpha=1, nudge_y=1, nudge_x = 1) +
+        theme_bw() +
+        theme(
+            axis.text = element_text(size=10),
+            axis.title.y = element_text(size=12),
+            axis.title.x=element_blank(),
+            legend.title = element_text(size=12),
+            legend.text = element_text(size=10),
+            legend.key.size = unit(1,"line"),
+            legend.position= 'bottom',
+            legend.direction = "vertical",
+            legend.box = "horizontal",
+            panel.grid.major.x = element_blank())
+    p1 = ggplot(don_sub, aes(x=BPcum, y=-log10(P), color=ICDanno, size=OR1, label=lab)) +
+        geom_point(alpha=0.8, position=position_jitter(h = 0, w = 0.5)) +
+        geom_hline(yintercept=7.3, linetype = "dashed") +
+        scale_color_manual(values=colors37, guide = guide_legend(ncol = 2, override.aes = list(size = 5))) +
+        scale_x_continuous(expand = c(0.01, 0.2), label = axisdf$CHR, breaks= axisdf$center, minor_breaks = axisdf$minBPcum) +
+        scale_size_manual(breaks = c("(0,1)", "[1,5)", "[5,10)", "[10,15)", ">=15"), values = c(1, 1.5, 2, 2.5, 3)) +
+        # scale_y_break(c(10, 10), scale='free', space = 0) +
+        geom_text_repel(force=20, color="grey20", size=3, point.padding = 1, hjust = 1, vjust = 1,
+            arrow = arrow(length = unit(0.01, "npc"), type = "open", ends = "last"),
+            segment.color="grey20", segment.size=0.2, segment.alpha=1, nudge_y=1, nudge_x = 1) +
         scale_y_cut(10) +
         theme_bw() +
         theme(
@@ -134,17 +109,20 @@ plot_all_icd_snp = function(res_sig, title, ldblock = F){
             axis.ticks = element_blank(),
             axis.text.x = element_blank(),
             legend.position= 'none') #axis.text.x = element_text(angle = 60, vjust=1,hjust=1),
-    return(list(p1, p2))
-    # pdf(paste0(title, ".pdf"), width = 15, heigh = 6)
-    # plot(p1)
-    # dev.off()
-    # pdf(paste0(title, ".count.pdf"), width = 8, heigh = 3)
-    # plot(p2)
-    # dev.off()
+    return(list(p0, p1, p2))
 }
 
+load("pheWAS_sig_SAIGE_1e6_power0.8_filtered.RData")
+# res_sig_1e6_filter, 5e-8 <= Pvalue < 1e-6
+res_sig_1e6 = rbind(res_sig_1e6_filter, res_sig_filter) # get all SNPs with Pvalue < 1e-6
+h_SNP = c("1:147155826:C:G", "N97", "2:108999920:T:C", "N97", "6:61238993:A:G", "N81", 
+    "7:67431233:CA:C", "E61",
+    "10:48576703:C:G", "O02", "10:48551720:G:A", "E28", "12:80511378:C:T", "K13", 
+    "16:268762:G:A","D56", "16:60232728:C:T", "O06")
+h_SNP = as.data.frame(matrix(h_SNP, ncol=2, byrow=T), stringsAsFactors=F)
+
 pdf("Figure3A.pdf", width=15, height=6)
-plot_all_icd_snp(res_sig_raw[res_sig_raw$p.value<1e-6, ], title = "res_sig_raw_manhantan_ld_1e6", ldblock = T)
+plot_all_icd_snp(res_sig_1e6, title = "res_sig_raw_manhantan_ld_1e6", ldblock = T, h_SNP)
 dev.off()
 ```
 
