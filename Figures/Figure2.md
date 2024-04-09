@@ -377,11 +377,29 @@ colors37 = c("#466791","#60bf37","#953ada","#4fbe6c","#ce49d3","#a7b43d","#5a51d
 
 res_gwas_pop_ld$R2_levels1 = factor(ifelse(res_gwas_pop_ld$R2>0.8, "high", "low"), levels = c("low", "high"))
 
+# pdf("Figure2B.pdf", width = 6, height = 4)
+# ggplot(res_gwas_pop_ld, aes(power_levels, -log10(p.value), fill=R2_levels1)) +
+#     geom_boxplot(outlier.size = 0.3, outlier.shape = NA, width = 0.6) +
+#     scale_y_continuous(limits = c(0,10), breaks = seq(0,10,2.5)) +
+#     scale_fill_manual(values = rev(pal_ucscgb("default")(5))[c(1,3)]) +
+#     labs(fill= expression(paste("LD ",R^2))) +
+#     theme_bw() +
+#     theme(aspect.ratio = 0.6,
+#         legend.position = c(0.2, 0.6),
+#         legend.background = element_blank())
+# dev.off()
+
+# different R2_levels:  LD-R2>0.3, LD-R2>0.5, LD-R2>0.8
+dat = rbind(res_gwas_pop_ld[res_gwas_pop_ld$R2>0.3, ] %>% mutate(R2_levels2 = ">0.3"), 
+    res_gwas_pop_ld[res_gwas_pop_ld$R2>0.5, ] %>% mutate(R2_levels2 = ">0.5"),
+    res_gwas_pop_ld[res_gwas_pop_ld$R2>0.8, ] %>% mutate(R2_levels2 = ">0.8"))
+
 pdf("Figure2B.pdf", width = 6, height = 4)
-ggplot(res_gwas_pop_ld, aes(power_levels, -log10(p.value), fill=R2_levels1)) +
-    geom_boxplot(outlier.size = 0.3, outlier.shape = NA, width = 0.6) +
+ggplot(dat, aes(power_levels, -log10(p.value), fill=R2_levels2)) +
+    geom_boxplot(outlier.size = 0.3, width = 0.6) +
     scale_y_continuous(limits = c(0,10), breaks = seq(0,10,2.5)) +
-    scale_fill_manual(values = rev(pal_ucscgb("default")(5))[c(1,3)]) +
+    scale_fill_manual(values = rev(pal_ucscgb("default")(5))[c(1,2,3)]) +
+    stat_compare_means(method = "t.test", label = "p.signif") +
     labs(fill= expression(paste("LD ",R^2))) +
     theme_bw() +
     theme(aspect.ratio = 0.6,

@@ -40,23 +40,53 @@ dat = rbind(merge(minimac4_ld, ldproxy, by = c("SNP_A", "SNP_B")),
     merge(minimac4_ld, ldproxy, by.x = c("SNP_A", "SNP_B"), by.y = c("SNP_B", "SNP_A")))
 dat$R2_diff = dat$R2_1kg - dat$R2
 
-dat_filter = dat[abs(dat$R2_diff) < 0.01, ]
-write.table(snp_filter, file="snp_filter.txt", r=F,c=F,sep="\t",quote=F)
-
 index = sample(1:nrow(dat), 10000)
-index_1 = sample(which(abs(dat$R2_diff) < 0.01), 10000)
+
+load("pheWAS_sig_SAIGE_5e8_power0.8.RData")
+dat_sig = dat[dat$SNP_A %in% res_sig$MarkerID & dat$SNP_B %in% res_sig$MarkerID, ]
+dat_sig$R2_diff = dat_sig$R2_1kg - dat_sig$R2
+
+index_sig = sample(1:nrow(dat_sig), 10000)
+index_sig_1 = which(abs(dat_sig$R2_diff) < 0.01)
 
 pdf("FigureS5.pdf")
-ggplot(dat[index_1, ], aes(R2, R2_1kg)) +
+# ggplot(dat[index, ], aes(R2, R2_1kg)) +
+#         geom_density_2d_filled(contour_var = "ndensity") +
+#         annotate("text", x = 0.3, y = 0.9, color = "white", label = paste("rho =", cor(dat$R2, dat$R2_1kg))) +
+#         labs(x="LD R2 minimac4", y="LD R2 in 1KG") +
+#         scale_x_continuous(expand = c(0, 0), limits = c(0,1)) +
+#         scale_y_continuous(expand = c(0, 0), limits = c(0,1)) +
+#         theme_bw() +
+#         theme(aspect.ratio = 1,
+#             legend.position = c(0.8, 0.3))
+# ggplot(dat[index_1, ], aes(R2, R2_1kg)) +
+#         geom_density_2d_filled(contour_var = "ndensity") +
+#         annotate("text", x = 0.3, y = 0.9, color = "white", 
+#             label = paste("rho =", cor(dat$R2[which(abs(dat$R2_diff) < 0.01)], dat$R2_1kg[which(abs(dat$R2_diff) < 0.01)]))) +
+#         labs(x="LD R2 minimac4", y="LD R2 in 1KG") +
+#         scale_x_continuous(expand = c(0, 0), limits = c(0,1)) +
+#         scale_y_continuous(expand = c(0, 0), limits = c(0,1)) +
+#         theme_bw() +
+#         theme(aspect.ratio = 1,
+#             legend.position = c(0.8, 0.3))
+# ggplot(dat_sig[index_sig, ], aes(R2, R2_1kg)) +
+#         geom_density_2d_filled(contour_var = "ndensity") +
+#         annotate("text", x = 0.3, y = 0.9, color = "white", label = paste("rho =", cor(dat_sig$R2, dat_sig$R2_1kg))) +
+#         labs(x="LD R2 minimac4", y="LD R2 in 1KG") +
+#         scale_x_continuous(expand = c(0, 0), limits = c(0,1)) +
+#         scale_y_continuous(expand = c(0, 0), limits = c(0,1)) +
+#         theme_bw() +
+#         theme(aspect.ratio = 1,
+#             legend.position = c(0.8, 0.3))
+ggplot(dat_sig[index_sig_1, ], aes(R2, R2_1kg)) +
         geom_density_2d_filled(contour_var = "ndensity") +
         annotate("text", x = 0.3, y = 0.9, color = "white", 
-            label = paste("rho =", signif(cor(dat$R2[which(abs(dat$R2_diff) < 0.01)], dat$R2_1kg[which(abs(dat$R2_diff) < 0.01)]), 3))) +
+            label = paste("rho =", cor(dat_sig$R2[which(abs(dat_sig$R2_diff) < 0.01)], dat_sig$R2_1kg[which(abs(dat_sig$R2_diff) < 0.01)]))) +
         labs(x="LD R2 minimac4", y="LD R2 in 1KG") +
         scale_x_continuous(expand = c(0, 0), limits = c(0,1)) +
         scale_y_continuous(expand = c(0, 0), limits = c(0,1)) +
         theme_bw() +
         theme(aspect.ratio = 1,
-            legend.position = c(0.8, 0.3),
-            legend.position = "none")
+            legend.position = c(0.8, 0.3))
 dev.off()
 ```

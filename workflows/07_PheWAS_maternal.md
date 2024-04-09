@@ -247,11 +247,12 @@ res_sig$ICDanno[grep("Q", res_sig$icd)] = "Congenital malformations, deformation
 load("LDblock_5e8_Rsq0.8.RData")
 res_sig$LDblock = ldblock$L1[match(res_sig$MarkerID, ldblock$value)]
 
-res_sig_raw_anno = fread("../../for_SAIGE/annovar/pheWAS_sig_SAIGE_1e3_power0.8.lite.hg38_multianno.txt", header=T,sep="\t",stringsAsFactors=F)
+res_sig_raw_anno = fread("for_SAIGE/annovar/pheWAS_sig_SAIGE_1e3_power0.8.lite.hg38_multianno.txt", header=T,sep="\t",stringsAsFactors=F)
 res_sig_raw_anno$ID = paste(res_sig_raw_anno$Otherinfo4, res_sig_raw_anno$Otherinfo5, res_sig_raw_anno$Otherinfo7, res_sig_raw_anno$Otherinfo8, sep=":")
 
 res_sig$Func_refGene = res_sig_raw_anno$Func.refGene[match(res_sig$MarkerID, res_sig_raw_anno$ID)]
 
+save(res_sig, file="pheWAS_sig_SAIGE_5e8_power0.8.RData")
 
 # LD-R2<0.01
 # SNPs' LD-R2 in ulcWGS
@@ -270,15 +271,11 @@ dat = rbind(merge(minimac4_ld, ldproxy, by = c("SNP_A", "SNP_B")),
     merge(minimac4_ld, ldproxy, by.x = c("SNP_A", "SNP_B"), by.y = c("SNP_B", "SNP_A")))
 dat$R2_diff = dat$R2_1kg - dat$R2
 
-dat_sig = dat[dat$SNP_A %in% res_sig$MarkerID | dat$SNP_B %in% res_sig$MarkerID, ]
+dat_sig = dat[dat$SNP_A %in% res_sig$MarkerID & dat$SNP_B %in% res_sig$MarkerID, ]
 dat_sig$R2_diff = dat_sig$R2_1kg - dat_sig$R2
-dat_sig$R2_ratio = dat_sig$R2_1kg/dat_sig$R2
 
-
-dat_sig_1e6 = dat[dat$SNP_A %in% res_sig_raw$MarkerID | dat$SNP_B %in% res_sig_raw$MarkerID, ]
+dat_sig_1e6 = dat[dat$SNP_A %in% res_sig_raw$MarkerID & dat$SNP_B %in% res_sig_raw$MarkerID, ]
 dat_sig_1e6$R2_diff = dat_sig_1e6$R2_1kg - dat_sig_1e6$R2
-dat_sig_1e6$R2_ratio = dat_sig_1e6$R2_1kg/dat_sig_1e6$R2
-
 
 int = intersect(res_sig$MarkerID, dat_sig$SNP_B[which(dat_sig$SNP_A %in% res_sig$MarkerID & dat_sig$SNP_B %in% res_sig$MarkerID & abs(dat_sig$R2_diff)<0.01)])
 res_sig_filter = res_sig[which(res_sig$MarkerID %in% int), ]

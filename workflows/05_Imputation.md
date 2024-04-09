@@ -168,7 +168,7 @@ save(ldproxy, file="ld_results.RData")
 ## 5.4 SNPs' LDproxy in ulcWGS
 
 ```sh
-################################ LD-R2 of imputed variants
+################################ LD-R2 of imputed variants (MAF>0.01 and imputation score R2>0.5)
 for chr in {1..22};
 do
 {
@@ -189,3 +189,23 @@ awk '{OFS="\t";print $3,$6,$7}' ${i} |bgzip -@30 > ${out}
 # rm ${i}_ld_results.[ln]*
 done
 ```
+
+```R
+# imputed R2>0.5
+files = list.files(".", pattern="*.ld_results.txt.gz$", full.names = T)
+
+minimac4_ld = lapply(files, function(x){
+    a <- fread(x, header=T, sep="\t", stringsAsFactors=F)
+    return(a)
+})
+minimac4_ld = do.call(rbind, minimac4_ld)
+
+ldproxy = fread("ld_results.txt.gz", header=T,sep="\t",stringsAsFactors=F)
+colnames(ldproxy)[3] = "R2_1kg"
+
+dat = rbind(merge(minimac4_ld, ldproxy, by = c("SNP_A", "SNP_B")), 
+    merge(minimac4_ld, ldproxy, by.x = c("SNP_A", "SNP_B"), by.y = c("SNP_B", "SNP_A")))
+dat$R2_diff = dat$R2_1kg - dat$R2
+
+dat_filter = dat[abs(dat$R2_diff) < 0.01, ]
+write.table(snp_filter, file="snp_filter.txt", r=F,c=F,sep="\t",quote=F)
